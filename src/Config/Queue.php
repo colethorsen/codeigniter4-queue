@@ -1,4 +1,4 @@
-<?php namespace Config;
+<?php namespace CodeIgniter\Queue\Config;
 
 use CodeIgniter\Config\BaseConfig;
 
@@ -40,9 +40,9 @@ class Queue extends BaseConfig
 		],
 	];
 
-	public $maxRetry             = 3;
-	public $timeout              = 30;
-	public $remainingDoneMessage = 86400;
+	public $maxRetry                = 3;
+	public $timeout                 = 30;
+	public $deleteDoneMessagesAfter = 30 * DAY;
 
 	public $tests = [
 		'handler'          => 'Database',

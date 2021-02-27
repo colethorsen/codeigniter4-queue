@@ -40,7 +40,7 @@ class DatabaseHandler extends BaseHandler
 	/**
 	 * @var integer
 	 */
-	protected $remainingDoneMessage;
+	protected $deleteDoneMessagesAfter;
 
 	/**
 	 * @var \CodeIgniter\Database\BaseConnection
@@ -49,6 +49,8 @@ class DatabaseHandler extends BaseHandler
 
 	/**
 	 * create tables.
+	 *
+	 * //TODO: this should be moved out to migrations.
 	 */
 	public static function migrateUp(\CodeIgniter\Database\Forge $forge)
 	{
@@ -96,9 +98,9 @@ class DatabaseHandler extends BaseHandler
 		$this->dbGroup          = $groupConfig['dbGroup'];
 		$this->sharedConnection = $groupConfig['sharedConnection'];
 
-		$this->timeout              = $config->timeout;
-		$this->maxRetry             = $config->maxRetry;
-		$this->remainingDoneMessage = $config->remainingDoneMessage;
+		$this->timeout                 = $config->timeout;
+		$this->maxRetry                = $config->maxRetry;
+		$this->deleteDoneMessagesAfter = $config->deleteDoneMessagesAfter;
 
 		$this->db = \Config\Database::connect($this->dbGroup, $this->sharedConnection);
 	}
@@ -206,6 +208,7 @@ class DatabaseHandler extends BaseHandler
 	 */
 	public function keepHouse()
 	{
+		//update executing statuses to waiting on timeout before max retry.
 		$this->db->table($this->table)
 			->set('retry_count', 'retry_count + 1', false)
 			->set('status', self::STATUS_WAITING)
@@ -214,6 +217,8 @@ class DatabaseHandler extends BaseHandler
 			->where('updated_at <', date('Y-m-d H:i:s', time() - $this->timeout))
 			->where('retry_count <', $this->maxRetry)
 			->update();
+
+		//update executing statuses to failed on timeout at max retry.
 		$this->db->table($this->table)
 			->set('retry_count', 'retry_count + 1', false)
 			->set('status', self::STATUS_FAILED)
@@ -222,10 +227,15 @@ class DatabaseHandler extends BaseHandler
 			->where('updated_at <', date('Y-m-d H:i:s', time() - $this->timeout))
 			->where('retry_count >=', $this->maxRetry)
 			->update();
-		$this->db->table($this->table)
-			->where('status', self::STATUS_DONE)
-			->where('updated_at <', date('Y-m-d H:i:s', time() - $this->remainingDoneMessage))
-			->delete();
+
+		//Delete messages after the configured period.
+		if ($this->deleteDoneMessages !== false)
+		{
+			$this->db->table($this->table)
+				->where('status', self::STATUS_DONE)
+				->where('updated_at <', date('Y-m-d H:i:s', time() - $this->deleteDoneMessagesAfter))
+				->delete();
+		}
 	}
 
 	protected function isMatchedRouting($routingKey, $routing): bool
