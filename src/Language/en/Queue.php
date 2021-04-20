@@ -13,7 +13,8 @@
  */
 
 return [
-   'invalidGroup'         => "'{0}' is not a valid queue connection group.",
-   'invalidExchangeName'  => "'{0}'  is not a valid exchange name.",
+   'invalid_connection'   => "'{0}' is not a valid queue connection group.",
    'failGetQueueDatabase' => 'something occers on running a query: meybe `{0}` table is not found.',
+
+   'could_not_work'       => 'There is currently no functionality to work this queue, entries should be jobs, commands, or closures',
 ];

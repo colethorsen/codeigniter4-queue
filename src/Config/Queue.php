@@ -7,10 +7,14 @@ use CodeIgniter\Config\BaseConfig;
  */
 class Queue extends BaseConfig
 {
-	public $defaultGroup    = 'database';
-	public $defaultExchange = 'ci_queue_exchange';
-	public $defaultQueue    = 'ci_queue';
+	public $defaultConnection = 'database';
+	public $defaultQueue      = 'default';
 
+	public $maxRetries              = 3;
+	public $timeout                 = 30;
+	public $deleteDoneMessagesAfter = 30 * DAY;
+
+	/*
 	public $rabbitmq = [
 		'handler'  => 'RabbitMQ',
 		'host'     => 'localhost',
@@ -20,7 +24,7 @@ class Queue extends BaseConfig
 		'vhost'    => '/',
 		'do_setup' => true,
 	];
-
+	*/
 	public $database = [
 		'handler'          => 'Database',
 		'dbGroup'          => 'default',
@@ -29,25 +33,11 @@ class Queue extends BaseConfig
 	];
 
 	/*
-	 * routing key to queue mapping.
-	 * routing key is separated by period.
-	 *   '*': exactly one word
-	 *   '#': words(greedy) or none
-	 */
-	public $exchangeMap = [
-		'ci_queue_exchange' => [
-			'#' => 'ci_queue',
-		],
-	];
-
-	public $maxRetry                = 3;
-	public $timeout                 = 30;
-	public $deleteDoneMessagesAfter = 30 * DAY;
-
 	public $tests = [
 		'handler'          => 'Database',
 		'dbGroup'          => 'tests',
 		'sharedConnection' => true,
 		'table'            => 'ci_queue',
 	];
+	*/
 }

@@ -4,16 +4,6 @@ use CodeIgniter\Queue\Exceptions\QueueException;
 
 /**
  * Queue class.
- *
- * Queueing system has several actors, but this class has all actions.
- *
- * "Queue Producers" send messages to "Exchange".
- * "Exchange" deliver messages to queues based on routing-setting.
- *
- * "Queue Customers" recieve each message from queueing system.
- * There can be many customers, but each message is processed just once.
- * Message is deleted when process is completed.
- * When incompleted, message is returnd to queueing system.
  */
 class Queue implements QueueInterface
 {
@@ -25,45 +15,45 @@ class Queue implements QueueInterface
 	protected $config;
 
 	/**
-	 * Config of the connection group to use
+	 * Config of the connection connection to use
 	 *
 	 * @var array
 	 */
-	protected $groupConfig;
+	protected $connectionConfig;
 
 	/**
 	 * Constructor.
 	 *
 	 * @param \Config\Queue $config
-	 * @param string|array  $group  The name of the connection group to use,
-	 *                               or an array of configuration settings.
+	 * @param string|array  $connection The name of the connection to use,
+	 *                              or an array of configuration settings.
 	 */
-	public function __construct($config, $group = '')
+	public function __construct($config, $connection = '')
 	{
-		if (is_array($group))
+		if (is_array($connection))
 		{
-			$groupConfig = $group;
-			$group       = 'custom';
+			$connectionConfig = $connection;
+			$connection       = 'custom';
 		}
 		else
 		{
-			if ($group === '')
+			if ($connection === '')
 			{
-				$group = ENVIRONMENT === 'testing' ? 'tests' : (string) $config->defaultGroup;
+				$connection = ENVIRONMENT === 'testing' ? 'tests' : (string) $config->defaultConnection;
 			}
 
-			if (isset($config->$group))
+			if (isset($config->$connection))
 			{
-				$groupConfig = $config->$group;
+				$connectionConfig = $config->$connection;
 			}
 			else
 			{
-				throw QueueException::forInvalidGroup($group);
+				throw QueueException::forInvalidconnection($connection);
 			}
 		}
 
-		$this->groupConfig = $groupConfig;
-		$this->config      = $config;
+		$this->connectionConfig = $connectionConfig;
+		$this->config           = $config;
 	}
 
 	/**
@@ -73,7 +63,7 @@ class Queue implements QueueInterface
 	 */
 	public function connect()
 	{
-		$handler = '\\CodeIgniter\\Queue\\Handlers\\' . $this->groupConfig['handler'] . 'Handler';
-		return new $handler($this->groupConfig, $this->config);
+		$handler = '\\CodeIgniter\\Queue\\Handlers\\' . $this->connectionConfig['handler'] . 'Handler';
+		return new $handler($this->connectionConfig, $this->config);
 	}
 }

@@ -18,16 +18,6 @@ class DatabaseHandler extends BaseHandler
 	protected $table;
 
 	/**
-	 * @var string
-	 */
-	protected $dbGroup;
-
-	/**
-	 * @var boolean
-	 */
-	protected $sharedConnection;
-
-	/**
 	 * @var integer
 	 */
 	protected $timeout;
@@ -35,7 +25,7 @@ class DatabaseHandler extends BaseHandler
 	/**
 	 * @var integer
 	 */
-	protected $maxRetry;
+	protected $maxRetries;
 
 	/**
 	 * @var integer
@@ -48,99 +38,52 @@ class DatabaseHandler extends BaseHandler
 	protected $db;
 
 	/**
-	 * create tables.
-	 *
-	 * //TODO: this should be moved out to migrations.
-	 */
-	public static function migrateUp(\CodeIgniter\Database\Forge $forge)
-	{
-		$forge->addField([
-			'id'          => [
-				'type'           => 'INTEGER',
-				'auto_increment' => true,
-			],
-			'queue_name'  => [
-				'type'       => 'VARCHAR',
-				'constraint' => 255,
-			],
-			'status'      => [ 'type' => 'INTEGER' ],
-			'weight'      => [ 'type' => 'INTEGER' ],
-			'retry_count' => [ 'type' => 'INTEGER' ],
-			'exec_after'  => [ 'type' => 'DATETIME' ],
-			'data'        => [ 'type' => 'TEXT' ],
-			'created_at'  => [ 'type' => 'DATETIME' ],
-			'updated_at'  => [ 'type' => 'DATETIME' ],
-		]);
-		$forge->addKey('id', true);
-		//      $forge->addKey(['weight', 'id', 'queue_name', 'status', 'exec_after']);
-		$forge->createTable('ci_queue', true);
-	}
-
-	/**
-	 * drop tables.
-	 */
-	public static function migrateDown(\CodeIgniter\Database\Forge $forge)
-	{
-		$forge->dropTable('ci_queue');
-	}
-
-	/**
 	 * constructor.
 	 *
-	 * @param array         $groupConfig
+	 * @param array         $connectionConfig
 	 * @param \Config\Queue $config
 	 */
-	public function __construct($groupConfig, $config)
+	public function __construct($connectionConfig, $config)
 	{
-		parent::__construct($groupConfig, $config);
+		parent::__construct($connectionConfig, $config);
 
-		$this->table            = $groupConfig['table'];
-		$this->dbGroup          = $groupConfig['dbGroup'];
-		$this->sharedConnection = $groupConfig['sharedConnection'];
+		$this->table = $connectionConfig['table'];
 
 		$this->timeout                 = $config->timeout;
-		$this->maxRetry                = $config->maxRetry;
+		$this->maxRetries              = $config->maxRetries;
 		$this->deleteDoneMessagesAfter = $config->deleteDoneMessagesAfter;
 
-		$this->db = \Config\Database::connect($this->dbGroup, $this->sharedConnection);
+		$this->db = \Config\Database::connect($connectionConfig['dbGroup'] ?? config('Database')->defaultGroup, $connectionConfig['sharedConnection'] ?? true);
 	}
 
 	/**
 	 * send message to queueing system.
 	 *
 	 * @param array  $data
-	 * @param string $routingKey
-	 * @param string $exchangeName
+	 * @param string $queue
 	 */
-	public function send($data, string $routingKey = '', string $exchangeName = '')
+	public function send($data, string $queue = '')
 	{
-		if ($exchangeName === '')
+		if ($queue === '')
 		{
-			$exchangeName = $this->defaultExchange;
-		}
-		if (! isset($this->exchangeMap[$exchangeName]))
-		{
-			throw QueueException::forInvalidExchangeName($exchangeName . ' is not a valid exchange name.');
+			$queue = $this->defaultQueue;
 		}
 
 		$this->db->transStart();
-		foreach ($this->exchangeMap[$exchangeName] as $routing => $queueName)
-		{
-			if ($this->isMatchedRouting($routingKey, $routing))
-			{
-				$datetime = date('Y-m-d H:i:s');
-				$this->db->table($this->table)->insert([
-					'queue_name'  => $queueName,
-					'status'      => self::STATUS_WAITING,
-					'weight'      => 100,
-					'retry_count' => 0,
-					'exec_after'  => '1753-01-01 00:00:00',
-					'data'        => json_encode($data),
-					'created_at'  => $datetime,
-					'updated_at'  => $datetime,
-				]);
-			}
-		}
+
+		$datetime = date('Y-m-d H:i:s');
+
+		$this->db->table($this->table)->insert([
+			'queue'        => $queue,
+			'status'       => self::STATUS_WAITING,
+			'weight'       => 100,
+			'attempts'     => 0,
+			'available_at' => $this->available_at->format('Y-m-d H:i:s'),
+			'data'         => serialize($data),
+			'created_at'   => $datetime,
+			'updated_at'   => $datetime,
+		]);
+
 		$this->db->transComplete();
 	}
 
@@ -149,41 +92,55 @@ class DatabaseHandler extends BaseHandler
 	 * When there are no message, this method will return (won't wait).
 	 *
 	 * @param  callable $callback
-	 * @param  string   $queueName
+	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	public function fetch(callable $callback, string $queueName = '') : bool
+	public function fetch(callable $callback, string $queue = '') : bool
 	{
 		$query = $this->db->table($this->table)
-			->where('queue_name', $queueName !== '' ? $queueName : $this->defaultQueue)
+			->where('queue', $queue !== '' ? $queue : $this->defaultQueue)
 			->where('status', self::STATUS_WAITING)
-			->where('exec_after <', date('Y-m-d H:i:s'))
+			->where('available_at <', date('Y-m-d H:i:s'))
 			->orderBy('weight')
 			->orderBy('id')
 			->limit(1)
 			->get();
+
 		if (! $query)
 		{
 			throw QueueException::forFailGetQueueDatabase($this->table);
 		}
 
 		$row = $query->getRow();
-		if ($row)
+
+		//if there is nothing else to run at the moment return false.
+		if (! $row)
 		{
-			$this->db->table($this->table)
-				->where('id', (int) $row->id)
-				->where('status', (int)self::STATUS_WAITING)
-				->update(['status' => self::STATUS_EXECUTING, 'updated_at' => date('Y-m-d H:i:s')]);
-			if ($this->db->affectedRows() > 0)
+			$this->housekeeping();
+
+			return false;
+		}
+
+		//set the status to executing if it hasn't already been taken.
+		$this->db->table($this->table)
+			->where('id', (int) $row->id)
+			->where('status', (int)self::STATUS_WAITING)
+			->update(['status' => self::STATUS_EXECUTING, 'updated_at' => date('Y-m-d H:i:s')]);
+
+		//if it hasn't already been taken run the callback.
+		if ($this->db->affectedRows() > 0)
+		{
+			//if the callback is successful mark it as done.
+			if ($callback(unserialize($row->data)))
 			{
-				$callback(json_decode($row->data));
 				$this->db->table($this->table)
 					->where('id', $row->id)
 					->update(['status' => self::STATUS_DONE, 'updated_at' => date('Y-m-d H:i:s')]);
-				return true;
 			}
 		}
-		return false;
+
+		//there could be more to run so return true.
+		return true;
 	}
 
 	/**
@@ -191,12 +148,12 @@ class DatabaseHandler extends BaseHandler
 	 * When there are no message, this method will wait.
 	 *
 	 * @param  callable $callback
-	 * @param  string   $queueName
+	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	public function receive(callable $callback, string $queueName = '') : bool
+	public function receive(callable $callback, string $queue = '') : bool
 	{
-		while (! $this->fetch($callback, $queueName))
+		while (! $this->fetch($callback, $queue))
 		{
 			usleep(1000000);
 		}
@@ -204,53 +161,37 @@ class DatabaseHandler extends BaseHandler
 	}
 
 	/**
-	 * housekeeper.
+	 * housekeeping.
 	 */
-	public function keepHouse()
+	public function housekeeping()
 	{
 		//update executing statuses to waiting on timeout before max retry.
 		$this->db->table($this->table)
-			->set('retry_count', 'retry_count + 1', false)
+			->set('attempts', 'attempts + 1', false)
 			->set('status', self::STATUS_WAITING)
 			->set('updated_at', date('Y-m-d H:i:s'))
 			->where('status', self::STATUS_EXECUTING)
 			->where('updated_at <', date('Y-m-d H:i:s', time() - $this->timeout))
-			->where('retry_count <', $this->maxRetry)
+			->where('attempts <', $this->maxRetries)
 			->update();
 
 		//update executing statuses to failed on timeout at max retry.
 		$this->db->table($this->table)
-			->set('retry_count', 'retry_count + 1', false)
+			->set('attempts', 'attempts + 1', false)
 			->set('status', self::STATUS_FAILED)
 			->set('updated_at', date('Y-m-d H:i:s'))
 			->where('status', self::STATUS_EXECUTING)
 			->where('updated_at <', date('Y-m-d H:i:s', time() - $this->timeout))
-			->where('retry_count >=', $this->maxRetry)
+			->where('attempts >=', $this->maxRetries)
 			->update();
 
 		//Delete messages after the configured period.
-		if ($this->deleteDoneMessages !== false)
+		if ($this->deleteDoneMessagesAfter !== false)
 		{
 			$this->db->table($this->table)
 				->where('status', self::STATUS_DONE)
 				->where('updated_at <', date('Y-m-d H:i:s', time() - $this->deleteDoneMessagesAfter))
 				->delete();
 		}
-	}
-
-	protected function isMatchedRouting($routingKey, $routing): bool
-	{
-		// to avoid phpcs error(infinite loop), use one-time variant.
-		$from = [
-			'\*',
-			'#',
-		];
-		$to   = [
-			'[-_a-zA-Z0-9]+',
-			'.*',
-		];
-
-		$regex = str_replace($from, $to, preg_quote($routing, '/'));
-		return (bool) preg_match('/^' . $regex . '$/', $routingKey);
 	}
 }
