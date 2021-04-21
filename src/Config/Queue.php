@@ -14,6 +14,9 @@ class Queue extends BaseConfig
 	public $timeout                 = 30;
 	public $deleteDoneMessagesAfter = 30 * DAY;
 
+	//the max number of queue entries to process at once.
+	public $maxWorkerBatch          = 20;
+
 	/*
 	public $rabbitmq = [
 		'handler'  => 'RabbitMQ',
