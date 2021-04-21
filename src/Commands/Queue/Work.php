@@ -64,9 +64,27 @@ class Work extends BaseCommand
 
 		CLI::write('Working Queue: ' . $queue, 'yellow');
 
-		while (\Config\Services::queue()->fetch([$this, 'fire'], $queue))
+		$response      = true;
+		$jobsProcessed = 0;
+		$startTime     = time();
+
+		do
 		{
+			try
+			{
+				$this->stopIfNecessary($startTime, $jobsProcessed);
+
+				$response = \Config\Services::queue()->fetch([$this, 'fire'], $queue);
+
+				$jobsProcessed++;
+			}
+			catch (\Exception $e)
+			{
+				CLI::error('Failed', 'light_red');
+				CLI::error("Exception: {$e->getCode()} - {$e->getMessage()}\nfile: {$e->getFile()}:{$e->getLine()}");
+			}
 		}
+		while($response === true);
 
 		CLI::write('Completed', 'green');
 	}
@@ -78,44 +96,100 @@ class Work extends BaseCommand
 	 *
 	 * @return string
 	 */
-	public function fire(array $data): bool
+	public function fire(array $data)
 	{
-		$success = false;
-
 		if (isset($data['command']))
 		{
 			CLI::write('Executing Command: ' . $data['command']);
 
-			$response = command($data['command']);
-
-			$success = ($response === false) ? false : true;
+			command($data['command']);
 		}
 		else if (isset($data['job']))
 		{
 			CLI::write('Executing Job: ' . $data['job']);
 
-			$success = $data['job']::handle($data['data']);
+			$data['job']::handle($data['data']);
 		}
 		else if (isset($data['closure']))
 		{
 			CLI::write('Executing Closure: ' . $data['job']);
 
-			$success = $data['job']::handle($data['data']);
+			$data['job']::handle($data['data']);
 		}
 		else
 		{
 			throw QueueException::couldNotWork();
 		}
 
-		if ($success === true)
+		CLI::write('Success', 'green');
+	}
+
+	/**
+	 * Determine if we should stop the worker.
+	 *
+	 * @param integer $startTime
+	 * @param integer $jobsProcessed
+	 */
+	protected function stopIfNecessary($startTime, $jobsProcessed)
+	{
+		$shouldQuit = false;
+
+		$maxTime = ini_get('max_execution_time') - 5; //max execution time minus a bit of a buffer (5 sec).
+
+		$maxMemory   = ($this->getMemoryLimit() / 1024 / 1024) - 10; //max memory with a buffer (10MB);
+		$memoryUsage = memory_get_usage(true) / 1024 / 1024;
+
+		$maxBatch = config('Queue')->maxWorkerBatch;
+
+		//max time limit.
+		if ($maxTime > 0 && time() - $startTime > $maxTime)
 		{
-			CLI::write('Success', 'green');
+			$shouldQuit = true;
+			$reason     = 'Time Limit Reached';
 		}
-		else
+		//max memory
+		else if ($maxMemory > 0 && $memoryUsage > $maxMemory)
 		{
-			CLI::write('Failed', 'red');
+			$shouldQuit = true;
+			$reason     = 'Memory Limit Reached';
+		}
+		else if ($maxBatch > 0 && $jobsProcessed >= $maxBatch)
+		{
+			$shouldQuit = true;
+			$reason     = 'Maxmium Batch Size Reached';
 		}
 
-		return $success;
+		if (isset($reason))
+		{
+			CLI::write('Exiting Worker: ' . $reason, 'yellow');
+			exit;
+		}
+
+		return true;
+	}
+	/**
+	 * calculate the memory limit
+	 *
+	 * @return integer memory limit in bytes.
+	 */
+	protected function getMemoryLimit()
+	{
+		$memory_limit = ini_get('memory_limit');
+
+		preg_match('/^(\d+)(.)$/', $memory_limit, $matches);
+
+		switch($matches[2])
+		{
+			case 'M' :
+				$memoryLimit = $matches[1] * 1024 * 1024;
+				break;
+			case 'K' :
+				$memoryLimit = $matches[1] * 1024;
+				break;
+			default :
+				throw new \Exception('Unknown Memory Limit');
+
+			return $memoryLimit;
+		}
 	}
 }

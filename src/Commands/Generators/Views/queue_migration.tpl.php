@@ -31,6 +31,7 @@ class {class} extends Migration
 			],
 			'available_at' => [ 'type' => 'DATETIME' ],
 			'data'         => [ 'type' => 'TEXT' ],
+			'error'        => [ 'type' => 'TEXT' ],
 			'created_at'   => [ 'type' => 'DATETIME' ],
 			'updated_at'   => [ 'type' => 'DATETIME' ],
 		]);

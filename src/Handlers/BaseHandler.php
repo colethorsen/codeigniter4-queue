@@ -147,4 +147,26 @@ abstract class BaseHandler
 
 		return $this->send($data);
 	}
+
+	/**
+	 * run a job from the queue
+	 *
+	 * @param string $job  the job to run
+	 * @param array  $data data for the job
+	 */
+	protected function fireOnFailure(\Exception $e, $data)
+	{
+		\CodeIgniter\Events\Events::trigger('queue_failure', $e, $data);
+	}
+
+	/**
+	 * run a job from the queue
+	 *
+	 * @param string $job  the job to run
+	 * @param array  $data data for the job
+	 */
+	protected function fireOnSuccess($data)
+	{
+		\CodeIgniter\Events\Events::trigger('queue_success', $data);
+	}
 }

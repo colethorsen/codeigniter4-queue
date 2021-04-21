@@ -125,18 +125,48 @@ class DatabaseHandler extends BaseHandler
 		$this->db->table($this->table)
 			->where('id', (int) $row->id)
 			->where('status', (int)self::STATUS_WAITING)
-			->update(['status' => self::STATUS_EXECUTING, 'updated_at' => date('Y-m-d H:i:s')]);
+			->update([
+				'status'     => self::STATUS_EXECUTING,
+				'updated_at' => date('Y-m-d H:i:s'),
+			]);
 
-		//if it hasn't already been taken run the callback.
-		if ($this->db->affectedRows() > 0)
+		//don't run again if its already been taken.
+		if ($this->db->affectedRows() === 0)
 		{
-			//if the callback is successful mark it as done.
-			if ($callback(unserialize($row->data)))
-			{
-				$this->db->table($this->table)
-					->where('id', $row->id)
-					->update(['status' => self::STATUS_DONE, 'updated_at' => date('Y-m-d H:i:s')]);
-			}
+			return true;
+		}
+
+		$data = unserialize($row->data);
+
+		//if the callback doesn't throw an exception mark it as done.
+		try
+		{
+			$callback($data);
+
+			$this->db->table($this->table)
+				->where('id', $row->id)
+				->update([
+					'status'     => self::STATUS_DONE,
+					'updated_at' => date('Y-m-d H:i:s'),
+				]);
+
+			$this->fireOnSuccess($data);
+		}
+		catch (\Exception $e)
+		{
+			//track any exceptions into the database for easier troubleshooting.
+			$error = "{$e->getCode()} - {$e->getMessage()}\n\n" .
+					"file: {$e->getFile()}:{$e->getLine()}\n" .
+					"------------------------------------------------------\n\n";
+
+			$this->db->table($this->table)
+				->where('id', $row->id)
+				->set('error', 'CONCAT(error, "' . $error . '")', false)
+				->update();
+
+			$this->fireOnFailure($e, $data);
+
+			throw $e;
 		}
 
 		//there could be more to run so return true.
@@ -162,6 +192,8 @@ class DatabaseHandler extends BaseHandler
 
 	/**
 	 * housekeeping.
+	 *
+	 * clean up the database at the end of each run.
 	 */
 	public function housekeeping()
 	{
