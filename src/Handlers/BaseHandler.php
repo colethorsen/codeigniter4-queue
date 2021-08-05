@@ -154,7 +154,7 @@ abstract class BaseHandler
 	 * @param string $job  the job to run
 	 * @param array  $data data for the job
 	 */
-	protected function fireOnFailure(\Exception $e, $data)
+	protected function fireOnFailure(\Throwable $e, $data)
 	{
 		\CodeIgniter\Events\Events::trigger('queue_failure', $e, $data);
 	}

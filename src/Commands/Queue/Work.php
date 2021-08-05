@@ -78,7 +78,7 @@ class Work extends BaseCommand
 
 				$jobsProcessed++;
 			}
-			catch (\Exception $e)
+			catch (\Throwable $e)
 			{
 				CLI::error('Failed', 'light_red');
 				CLI::error("Exception: {$e->getCode()} - {$e->getMessage()}\nfile: {$e->getFile()}:{$e->getLine()}");
@@ -86,7 +86,7 @@ class Work extends BaseCommand
 		}
 		while($response === true);
 
-		CLI::write('Completed', 'green');
+		CLI::write('Completed Working Queue', 'green');
 	}
 
 	/**

@@ -152,7 +152,7 @@ class DatabaseHandler extends BaseHandler
 
 			$this->fireOnSuccess($data);
 		}
-		catch (\Exception $e)
+		catch (\Throwable $e)
 		{
 			//track any exceptions into the database for easier troubleshooting.
 			$error = "{$e->getCode()} - {$e->getMessage()}\n\n" .
