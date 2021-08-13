@@ -180,6 +180,9 @@ class Work extends BaseCommand
 
 		switch($matches[2])
 		{
+			case 'G' :
+				$memoryLimit = $matches[1] * 1024 * 1024 * 1024;
+				break;
 			case 'M' :
 				$memoryLimit = $matches[1] * 1024 * 1024;
 				break;
