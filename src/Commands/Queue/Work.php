@@ -176,7 +176,14 @@ class Work extends BaseCommand
 	{
 		$memory_limit = ini_get('memory_limit');
 
+		//if there is no memory limit just set it to 2GB
+		if($memory_limit = -1)
+			return 2 * 1024 * 1024 * 1024;
+
 		preg_match('/^(\d+)(.)$/', $memory_limit, $matches);
+
+		if(!isset($matches[2]))
+			throw new \Exception('Unknown Memory Limit');
 
 		switch($matches[2])
 		{
