@@ -7,10 +7,10 @@ use CodeIgniter\Queue\Exceptions\QueueException;
  */
 class DatabaseHandler extends BaseHandler
 {
-	const STATUS_WAITING   = 10;
-	const STATUS_EXECUTING = 20;
-	const STATUS_DONE      = 30;
-	const STATUS_FAILED    = 40;
+	protected const STATUS_WAITING   = 10;
+	protected const STATUS_EXECUTING = 20;
+	protected const STATUS_DONE      = 30;
+	protected const STATUS_FAILED    = 40;
 
 	/**
 	 * @var string
@@ -95,7 +95,7 @@ class DatabaseHandler extends BaseHandler
 	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	public function fetch(callable $callback, string $queue = '') : bool
+	public function fetch(callable $callback, string $queue = ''): bool
 	{
 		$query = $this->db->table($this->table)
 			->where('queue', $queue !== '' ? $queue : $this->defaultQueue)
@@ -106,7 +106,7 @@ class DatabaseHandler extends BaseHandler
 			->limit(1)
 			->get();
 
-		if (! $query)
+		if ( ! $query)
 		{
 			throw QueueException::forFailGetQueueDatabase($this->table);
 		}
@@ -114,7 +114,7 @@ class DatabaseHandler extends BaseHandler
 		$row = $query->getRow();
 
 		//if there is nothing else to run at the moment return false.
-		if (! $row)
+		if ( ! $row)
 		{
 			$this->housekeeping();
 
@@ -124,7 +124,7 @@ class DatabaseHandler extends BaseHandler
 		//set the status to executing if it hasn't already been taken.
 		$this->db->table($this->table)
 			->where('id', (int) $row->id)
-			->where('status', (int)self::STATUS_WAITING)
+			->where('status', (int) self::STATUS_WAITING)
 			->update([
 				'status'     => self::STATUS_EXECUTING,
 				'updated_at' => date('Y-m-d H:i:s'),
@@ -181,12 +181,13 @@ class DatabaseHandler extends BaseHandler
 	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	public function receive(callable $callback, string $queue = '') : bool
+	public function receive(callable $callback, string $queue = ''): bool
 	{
-		while (! $this->fetch($callback, $queue))
+		while ( ! $this->fetch($callback, $queue))
 		{
 			usleep(1000000);
 		}
+
 		return true;
 	}
 
