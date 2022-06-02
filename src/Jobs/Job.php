@@ -12,7 +12,12 @@ abstract class Job
 	 */
 	abstract public static function handle(array $data = []) : bool;
 
-	public static function dispatch(array $data = [])
+	/**
+	 * Dispatches the job into the queue.
+	 *
+	 * @param mixed $data any data that will be needed by the job
+	 */
+	public static function dispatch($data = [])
 	{
 		$queue = self::getQueue();
 
@@ -28,7 +33,7 @@ abstract class Job
 	 */
 	public static function queue($queue)
 	{
-		return $this;
+		return get_called_class();
 	}
 
 	/**
@@ -42,7 +47,7 @@ abstract class Job
 		$queue = self::getQueue();
 		$queue->delayUntil($time);
 
-		return $this;
+		return get_called_class();
 	}
 
 	/**
@@ -57,7 +62,7 @@ abstract class Job
 		$queue = self::getQueue();
 		$queue->delay($min);
 
-		return $this;
+		return get_called_class();
 	}
 
 	protected static function getQueue()

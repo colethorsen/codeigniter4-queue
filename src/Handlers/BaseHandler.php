@@ -136,9 +136,9 @@ abstract class BaseHandler
 	 * run a job from the queue
 	 *
 	 * @param string $job  the job to run
-	 * @param array  $data data for the job
+	 * @param mixed  $data data for the job
 	 */
-	public function job(string $job, array $data = [])
+	public function job(string $job, $data = [])
 	{
 		$data = [
 			'job'  => $job,
