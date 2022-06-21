@@ -156,7 +156,7 @@ class Work extends BaseCommand
 		else if ($maxBatch > 0 && $jobsProcessed >= $maxBatch)
 		{
 			$shouldQuit = true;
-			$reason     = 'Maxmium Batch Size Reached';
+			$reason     = 'Maximum Batch Size Reached';
 		}
 
 		if (isset($reason))
