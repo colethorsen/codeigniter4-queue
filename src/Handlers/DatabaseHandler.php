@@ -155,7 +155,8 @@ class DatabaseHandler extends BaseHandler
 		catch (\Throwable $e)
 		{
 			//track any exceptions into the database for easier troubleshooting.
-			$error = "{$e->getCode()} - {$e->getMessage()}\n\n" .
+			$error = (new \DateTime)->format('Y-m-d H:i:s') . "\n" .
+					"{$e->getCode()} - {$e->getMessage()}\n\n" .
 					"file: {$e->getFile()}:{$e->getLine()}\n" .
 					"------------------------------------------------------\n\n";
 
