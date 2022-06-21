@@ -162,7 +162,7 @@ class DatabaseHandler extends BaseHandler
 
 			$this->db->table($this->table)
 				->where('id', $row->id)
-				->set('error', 'CONCAT(error, "' . $error . '")', false)
+				->set('error', 'CONCAT(error, "' . $this->db->escapeString($error) . '")', false)
 				->update();
 
 			$this->fireOnFailure($e, $data);
