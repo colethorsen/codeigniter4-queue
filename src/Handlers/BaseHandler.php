@@ -2,6 +2,8 @@
 
 use CodeIgniter\I18n\Time;
 
+use CodeIgniter\Queue\Message;
+
 /**
  * Base Queue handler.
  */
@@ -26,7 +28,7 @@ abstract class BaseHandler
 	 * @param array         $groupConfig
 	 * @param \Config\Queue $config
 	 */
-	public function __construct($groupConfig, $config)
+	public function __construct(array $groupConfig, \Config\Queue $config)
 	{
 		$this->defaultQueue = $config->defaultQueue;
 
@@ -38,8 +40,10 @@ abstract class BaseHandler
 	 *
 	 * @param array  $data
 	 * @param string $queue
+	 *
+	 * @return Message the message that was just created.
 	 */
-	abstract public function send($data, string $queue = '');
+	abstract public function send($data, string $queue = ''): Message;
 
 	/**
 	 * Fetch message from queueing system.
@@ -60,6 +64,21 @@ abstract class BaseHandler
 	 * @return boolean  whether callback is done or not.
 	 */
 	abstract public function receive(callable $callback, string $queue = '') : bool;
+
+	/**
+	 * Track progress of a message in the queuing system.
+	 *
+	 * @param int $currentStep the current step number
+	 * @param int $totalSteps  the total number of steps
+	 */
+	abstract public function progress(int $currentStep, int $totalSteps);
+
+	/**
+	 * Get info on a message in the queuing system.
+	 *
+	 * @param $id identifier in the queue.
+	 */
+	abstract public function getMessage(string $id);
 
 	/**
 	 * Set the delay in minutes
@@ -104,7 +123,7 @@ abstract class BaseHandler
 	 *
 	 * @param string $command the command to run
 	 */
-	public function command(string $command)
+	public function command(string $command): Message
 	{
 		$data = [
 			'command' => $command,
@@ -123,7 +142,7 @@ abstract class BaseHandler
 	 * to implement something like laravel does to get
 	 * around this.
 	 */
-	public function closure(callable $closure)
+	public function closure(callable $closure): Message
 	{
 		$data = [
 			'closure' => $closure,
@@ -138,7 +157,7 @@ abstract class BaseHandler
 	 * @param string $job  the job to run
 	 * @param mixed  $data data for the job
 	 */
-	public function job(string $job, $data = [])
+	public function job(string $job, $data = []): Message
 	{
 		$data = [
 			'job'  => $job,
@@ -152,21 +171,20 @@ abstract class BaseHandler
 	 * run a job from the queue
 	 *
 	 * @param string $job  the job to run
-	 * @param array  $data data for the job
+	 * @param Message  $message the message experiencing the error
 	 */
-	protected function fireOnFailure(\Throwable $e, $data)
+	protected function fireOnFailure(\Throwable $e, Message $message)
 	{
-		\CodeIgniter\Events\Events::trigger('queue_failure', $e, $data);
+		\CodeIgniter\Events\Events::trigger('queue_failure', $e, $message);
 	}
 
 	/**
 	 * run a job from the queue
 	 *
-	 * @param string $job  the job to run
-	 * @param array  $data data for the job
+	 * @param Message  $message the message that just succeeded.
 	 */
-	protected function fireOnSuccess($data)
+	protected function fireOnSuccess(Message $message)
 	{
-		\CodeIgniter\Events\Events::trigger('queue_success', $data);
+		\CodeIgniter\Events\Events::trigger('queue_success', $message);
 	}
 }

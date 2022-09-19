@@ -2,21 +2,18 @@
 
 use CodeIgniter\Queue\Exceptions\QueueException;
 
+use CodeIgniter\Queue\Status;
+use CodeIgniter\Queue\Message;
+
+use CodeIgniter\Queue\Handlers\DatabaseHandler\Model;
+
+use CodeIgniter\I18n\Time;
+
 /**
  * Queue handler for database.
  */
 class DatabaseHandler extends BaseHandler
 {
-	protected const STATUS_WAITING   = 10;
-	protected const STATUS_EXECUTING = 20;
-	protected const STATUS_DONE      = 30;
-	protected const STATUS_FAILED    = 40;
-
-	/**
-	 * @var string
-	 */
-	protected $table;
-
 	/**
 	 * @var integer
 	 */
@@ -33,9 +30,14 @@ class DatabaseHandler extends BaseHandler
 	protected $deleteDoneMessagesAfter;
 
 	/**
-	 * @var \CodeIgniter\Database\BaseConnection
+	 * @var DatabaseHandler\Model;
 	 */
-	protected $db;
+	protected $model;
+
+	/**
+	 * @var row ID currently being worked on
+	 */
+	protected $messageID;
 
 	/**
 	 * constructor.
@@ -43,17 +45,19 @@ class DatabaseHandler extends BaseHandler
 	 * @param array         $connectionConfig
 	 * @param \Config\Queue $config
 	 */
-	public function __construct($connectionConfig, $config)
+	public function __construct(array $connectionConfig, \Config\Queue $config)
 	{
 		parent::__construct($connectionConfig, $config);
 
-		$this->table = $connectionConfig['table'];
+		$dbConnection = \Config\Database::connect($connectionConfig['dbGroup'] ?? config('Database')->defaultGroup, $connectionConfig['sharedConnection'] ?? true);
+
+		$this->model = new Model($dbConnection);
+
+		$this->model->setTable($connectionConfig['table']);
 
 		$this->timeout                 = $config->timeout;
 		$this->maxRetries              = $config->maxRetries;
 		$this->deleteDoneMessagesAfter = $config->deleteDoneMessagesAfter;
-
-		$this->db = \Config\Database::connect($connectionConfig['dbGroup'] ?? config('Database')->defaultGroup, $connectionConfig['sharedConnection'] ?? true);
 	}
 
 	/**
@@ -61,30 +65,33 @@ class DatabaseHandler extends BaseHandler
 	 *
 	 * @param array  $data
 	 * @param string $queue
+	 *
+	 * @return Message the message that was just created.
 	 */
-	public function send($data, string $queue = '')
+	public function send($data, string $queue = ''): Message
 	{
 		if ($queue === '')
 		{
 			$queue = $this->defaultQueue;
 		}
 
-		$this->db->transStart();
-
-		$datetime = date('Y-m-d H:i:s');
-
-		$this->db->table($this->table)->insert([
+		$message = (new Message)->fill([
+			'data'         => $data,
 			'queue'        => $queue,
-			'status'       => self::STATUS_WAITING,
-			'weight'       => 100,
-			'attempts'     => 0,
-			'available_at' => $this->available_at->format('Y-m-d H:i:s'),
-			'data'         => serialize($data),
-			'created_at'   => $datetime,
-			'updated_at'   => $datetime,
+			'available_at' => $this->available_at,
 		]);
 
-		$this->db->transComplete();
+//		$this->db->transStart();
+
+		$this->model->insert($message);
+
+		$message->id = $this->model->getInsertID();
+		$message->created_at = new Time;
+		$message->updated_at = new Time;
+
+//		$this->db->transComplete();
+
+		return $message;
 	}
 
 	/**
@@ -95,77 +102,70 @@ class DatabaseHandler extends BaseHandler
 	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	public function fetch(callable $callback, string $queue = ''): bool
+	public function fetch(callable $callback, string $queue = '') : bool
 	{
-		$query = $this->db->table($this->table)
+		$message = $this->model
 			->where('queue', $queue !== '' ? $queue : $this->defaultQueue)
-			->where('status', self::STATUS_WAITING)
+			->where('status', Status::WAITING)
 			->where('available_at <', date('Y-m-d H:i:s'))
 			->orderBy('weight')
 			->orderBy('id')
-			->limit(1)
-			->get();
-
-		if ( ! $query)
+			->first();
+/*
+		if (! $query)
 		{
 			throw QueueException::forFailGetQueueDatabase($this->table);
 		}
-
-		$row = $query->getRow();
+*/
 
 		//if there is nothing else to run at the moment return false.
-		if ( ! $row)
+		if (! $message)
 		{
 			$this->housekeeping();
 
 			return false;
 		}
 
+		$message->status = Status::EXECUTING;
+
 		//set the status to executing if it hasn't already been taken.
-		$this->db->table($this->table)
-			->where('id', (int) $row->id)
-			->where('status', (int) self::STATUS_WAITING)
-			->update([
-				'status'     => self::STATUS_EXECUTING,
-				'updated_at' => date('Y-m-d H:i:s'),
-			]);
+		$this->model
+			->where('status', Status::WAITING)
+			->save($message);
 
 		//don't run again if its already been taken.
-		if ($this->db->affectedRows() === 0)
+		if ($this->model->db->affectedRows() === 0)
 		{
 			return true;
 		}
 
-		$data = unserialize($row->data);
-
 		//if the callback doesn't throw an exception mark it as done.
 		try
 		{
-			$callback($data);
+			$this->messageID = $message->id;
 
-			$this->db->table($this->table)
-				->where('id', $row->id)
-				->update([
-					'status'     => self::STATUS_DONE,
-					'updated_at' => date('Y-m-d H:i:s'),
-				]);
+			$callback($message->data);
 
-			$this->fireOnSuccess($data);
+			$message->status = Status::DONE;
+			$message->updated_at = new Time;
+
+			$this->model->save($message);
+
+			$this->fireOnSuccess($message);
 		}
 		catch (\Throwable $e)
 		{
 			//track any exceptions into the database for easier troubleshooting.
-			$error = (new \DateTime)->format('Y-m-d H:i:s') . "\n" .
-					"{$e->getCode()} - {$e->getMessage()}\n\n" .
+			$error = "{$e->getCode()} - {$e->getMessage()}\n\n" .
 					"file: {$e->getFile()}:{$e->getLine()}\n" .
 					"------------------------------------------------------\n\n";
 
-			$this->db->table($this->table)
-				->where('id', $row->id)
-				->set('error', 'CONCAT(error, "' . $this->db->escapeString($error) . '")', false)
-				->update();
+			$message->error = $message->error . $error;
+			$message->updated_at = new Time;
 
-			$this->fireOnFailure($e, $data);
+			$this->model->save($message);
+
+			$this->fireOnFailure($e, $message);
 
 			throw $e;
 		}
@@ -182,14 +182,38 @@ class DatabaseHandler extends BaseHandler
 	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	public function receive(callable $callback, string $queue = ''): bool
+	public function receive(callable $callback, string $queue = '') : bool
 	{
-		while ( ! $this->fetch($callback, $queue))
+		while (! $this->fetch($callback, $queue))
 		{
 			usleep(1000000);
 		}
-
 		return true;
+	}
+
+	/**
+	 * Track progress of a message in the queuing system.
+	 *
+	 * @param int $currentStep the current step number
+	 * @param int $totalSteps  the total number of steps
+	 */
+	public function progress(int $currentStep, int $totalSteps)
+	{
+		$this->model->update($this->messageID, [
+				'progress_current' => $currentStep,
+				'progress_total'   => $totalSteps,
+				'updated_at'       => date('Y-m-d H:i:s'),
+			]);
+	}
+
+	/**
+	 * Get info on a message in the queuing system.
+	 *
+	 * @param $id identifier in the queue.
+	 */
+	public function getMessage(string $id)
+	{
+		return $this->model->find($id);
 	}
 
 	/**
@@ -200,21 +224,21 @@ class DatabaseHandler extends BaseHandler
 	public function housekeeping()
 	{
 		//update executing statuses to waiting on timeout before max retry.
-		$this->db->table($this->table)
+		$this->model
 			->set('attempts', 'attempts + 1', false)
-			->set('status', self::STATUS_WAITING)
+			->set('status', Status::WAITING)
 			->set('updated_at', date('Y-m-d H:i:s'))
-			->where('status', self::STATUS_EXECUTING)
+			->where('status', Status::EXECUTING)
 			->where('updated_at <', date('Y-m-d H:i:s', time() - $this->timeout))
 			->where('attempts <', $this->maxRetries)
 			->update();
 
 		//update executing statuses to failed on timeout at max retry.
-		$this->db->table($this->table)
+		$this->model
 			->set('attempts', 'attempts + 1', false)
-			->set('status', self::STATUS_FAILED)
+			->set('status', Status::FAILED)
 			->set('updated_at', date('Y-m-d H:i:s'))
-			->where('status', self::STATUS_EXECUTING)
+			->where('status', Status::EXECUTING)
 			->where('updated_at <', date('Y-m-d H:i:s', time() - $this->timeout))
 			->where('attempts >=', $this->maxRetries)
 			->update();
@@ -222,8 +246,8 @@ class DatabaseHandler extends BaseHandler
 		//Delete messages after the configured period.
 		if ($this->deleteDoneMessagesAfter !== false)
 		{
-			$this->db->table($this->table)
-				->where('status', self::STATUS_DONE)
+			$this->model
+				->where('status', Status::DONE)
 				->where('updated_at <', date('Y-m-d H:i:s', time() - $this->deleteDoneMessagesAfter))
 				->delete();
 		}

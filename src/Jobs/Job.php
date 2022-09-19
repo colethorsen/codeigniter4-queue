@@ -16,12 +16,14 @@ abstract class Job
 	 * Dispatches the job into the queue.
 	 *
 	 * @param mixed $data any data that will be needed by the job
+	 *
+	 * @return identifier for the job from the queue.
 	 */
 	public static function dispatch($data = [])
 	{
 		$queue = self::getQueue();
 
-		$queue->job(get_called_class(), $data);
+		return $queue->job(get_called_class(), $data);
 	}
 
 	/**
@@ -73,5 +75,17 @@ abstract class Job
 		}
 
 		return self::$queue;
+	}
+
+	/**
+	 * Track the progress of a job.
+	 *
+	 * @param int $currentStep the current step number
+	 * @param int $totalSteps  the total number of steps
+	 */
+	public static function setProgress(int $currentStep, int $totalSteps)
+	{
+		$queue = self::getQueue();
+		$queue->progress($currentStep, $totalSteps);
 	}
 }

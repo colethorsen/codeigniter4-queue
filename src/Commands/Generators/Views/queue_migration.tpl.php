@@ -29,11 +29,13 @@ class {class} extends Migration
 				'type'     => 'INTEGER',
 				'unsigned' => true,
 			],
-			'available_at' => [ 'type' => 'DATETIME' ],
-			'data'         => [ 'type' => 'TEXT' ],
-			'error'        => [ 'type' => 'TEXT' ],
-			'created_at'   => [ 'type' => 'DATETIME' ],
-			'updated_at'   => [ 'type' => 'DATETIME' ],
+			'available_at'     => [ 'type' => 'DATETIME' ],
+			'data'             => [ 'type' => 'TEXT' ],
+			'progress_current' => [ 'type' => 'INT' ],
+			'progress_total'   => [ 'type' => 'INT' ],
+			'error'            => [ 'type' => 'TEXT' ],
+			'created_at'       => [ 'type' => 'DATETIME' ],
+			'updated_at'       => [ 'type' => 'DATETIME' ],
 		]);
 		$this->forge->addKey('id', true);
 		//      $this->forge->addKey(['weight', 'id', 'queue', 'status', 'available_at']);

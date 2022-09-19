@@ -13,8 +13,16 @@
  */
 
 return [
-   'invalid_connection'   => "'{0}' is not a valid queue connection group.",
-   'failGetQueueDatabase' => 'something occers on running a query: meybe `{0}` table is not found.',
+	'invalid_connection'   => "'{0}' is not a valid queue connection group.",
+	'failGetQueueDatabase' => 'something occurs on running a query: maybe `{0}` table is not found.',
 
-   'could_not_work'       => 'There is currently no functionality to work this queue, entries should be jobs, commands, or closures',
+	'could_not_work'       => 'There is currently no functionality to work this queue, entries should be jobs, commands, or closures',
+
+	'status' => [
+		'waiting'   => 'Waiting',
+		'executing' => 'Executing',
+		'done'      => 'Done',
+		'failed'    => 'Failed',
+		'unknown'   => 'Unknown',
+	],
 ];

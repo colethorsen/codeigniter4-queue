@@ -82,6 +82,8 @@ class Work extends BaseCommand
 			{
 				CLI::error('Failed', 'light_red');
 				CLI::error("Exception: {$e->getCode()} - {$e->getMessage()}\nfile: {$e->getFile()}:{$e->getLine()}");
+
+				log_exception($e);
 			}
 		}
 		while($response === true);
@@ -156,7 +158,7 @@ class Work extends BaseCommand
 		else if ($maxBatch > 0 && $jobsProcessed >= $maxBatch)
 		{
 			$shouldQuit = true;
-			$reason     = 'Maximum Batch Size Reached';
+			$reason     = 'Maxmium Batch Size Reached';
 		}
 
 		if (isset($reason))
