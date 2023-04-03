@@ -83,6 +83,22 @@ class DatabaseHandler extends BaseHandler
 
 //		$this->db->transStart();
 
+		//check for duplicates.
+		//There's no reason to create 2 jobs that run the same thing at the
+		//exact same time on the same queue.
+		$existing = $this->model->where([
+				'queue'        => $message->queue,
+				'status'       => $message->status,
+				'data'         => serialize($message->data),
+				'available_at' => $message->available_at,
+			])
+			->first();
+
+		if ($existing)
+		{
+			return $existing;
+		}
+
 		$this->model->insert($message);
 
 		$message->id = $this->model->getInsertID();
