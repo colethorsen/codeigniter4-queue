@@ -23,6 +23,11 @@ abstract class BaseHandler
 	protected $available_at;
 
 	/**
+	 * weight for the message
+	 */
+	protected $weight = 100;
+
+	/**
 	 * constructor.
 	 *
 	 * @param array         $groupConfig
@@ -53,7 +58,7 @@ abstract class BaseHandler
 	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	abstract public function fetch(callable $callback, string $queue = '') : bool;
+	abstract public function fetch(callable $callback, string $queue = ''): bool;
 
 	/**
 	 * Receive message from queueing system.
@@ -63,7 +68,7 @@ abstract class BaseHandler
 	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	abstract public function receive(callable $callback, string $queue = '') : bool;
+	abstract public function receive(callable $callback, string $queue = ''): bool;
 
 	/**
 	 * Track progress of a message in the queuing system.
@@ -96,12 +101,13 @@ abstract class BaseHandler
 	/**
 	 * Set the delay to a specific time
 	 *
-	 * @param  datetime	$datetime
+	 * @param  datetime $datetime
+	 * @param  mixed    $time
 	 * @return $this
 	 */
 	public function delayUntil($time)
 	{
-		if (! $time instanceof Time)
+		if ( ! $time instanceof Time)
 		{
 			if ($time instanceof \DateTime)
 			{
@@ -114,6 +120,19 @@ abstract class BaseHandler
 		}
 
 		$this->available_at = $time;
+
+		return $this;
+	}
+
+	/**
+	 * Set the weight
+	 *
+	 * @param  integer $weight
+	 * @return $this
+	 */
+	public function weight($weight)
+	{
+		$this->weight = $weight;
 
 		return $this;
 	}
@@ -170,8 +189,8 @@ abstract class BaseHandler
 	/**
 	 * run a job from the queue
 	 *
-	 * @param string $job  the job to run
-	 * @param Message  $message the message experiencing the error
+	 * @param string  $job     the job to run
+	 * @param Message $message the message experiencing the error
 	 */
 	protected function fireOnFailure(\Throwable $e, Message $message)
 	{
@@ -181,7 +200,7 @@ abstract class BaseHandler
 	/**
 	 * run a job from the queue
 	 *
-	 * @param Message  $message the message that just succeeded.
+	 * @param Message $message the message that just succeeded.
 	 */
 	protected function fireOnSuccess(Message $message)
 	{

@@ -79,6 +79,7 @@ class DatabaseHandler extends BaseHandler
 			'data'         => $data,
 			'queue'        => $queue,
 			'available_at' => $this->available_at,
+			'weight'       => $this->weight,
 		]);
 
 //		$this->db->transStart();
@@ -101,7 +102,7 @@ class DatabaseHandler extends BaseHandler
 
 		$this->model->insert($message);
 
-		$message->id = $this->model->getInsertID();
+		$message->id         = $this->model->getInsertID();
 		$message->created_at = new Time;
 		$message->updated_at = new Time;
 
@@ -118,7 +119,7 @@ class DatabaseHandler extends BaseHandler
 	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	public function fetch(callable $callback, string $queue = '') : bool
+	public function fetch(callable $callback, string $queue = ''): bool
 	{
 		$message = $this->model
 			->where('queue', $queue !== '' ? $queue : $this->defaultQueue)
@@ -127,15 +128,15 @@ class DatabaseHandler extends BaseHandler
 			->orderBy('weight')
 			->orderBy('id')
 			->first();
-/*
-		if (! $query)
-		{
-			throw QueueException::forFailGetQueueDatabase($this->table);
-		}
-*/
+		/*
+				if (! $query)
+				{
+					throw QueueException::forFailGetQueueDatabase($this->table);
+				}
+		 */
 
 		//if there is nothing else to run at the moment return false.
-		if (! $message)
+		if ( ! $message)
 		{
 			$this->housekeeping();
 
@@ -162,7 +163,7 @@ class DatabaseHandler extends BaseHandler
 
 			$callback($message->data);
 
-			$message->status = Status::DONE;
+			$message->status     = Status::DONE;
 			$message->updated_at = new Time;
 
 			$this->model->save($message);
@@ -176,7 +177,7 @@ class DatabaseHandler extends BaseHandler
 					"file: {$e->getFile()}:{$e->getLine()}\n" .
 					"------------------------------------------------------\n\n";
 
-			$message->error = $message->error . $error;
+			$message->error      = $message->error . $error;
 			$message->updated_at = new Time;
 
 			$this->model->save($message);
@@ -198,12 +199,13 @@ class DatabaseHandler extends BaseHandler
 	 * @param  string   $queue
 	 * @return boolean  whether callback is done or not.
 	 */
-	public function receive(callable $callback, string $queue = '') : bool
+	public function receive(callable $callback, string $queue = ''): bool
 	{
-		while (! $this->fetch($callback, $queue))
+		while ( ! $this->fetch($callback, $queue))
 		{
 			usleep(1000000);
 		}
+
 		return true;
 	}
 

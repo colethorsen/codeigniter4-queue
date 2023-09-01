@@ -4,13 +4,17 @@ abstract class Job
 {
 	protected static $queue;
 
+	protected static $defaultWeight = 100;
+
+	protected static $weight = null;
+
 	/**
 	 * handle the execution of a job
 	 *
-	 * @param  array $data data needed by the job
+	 * @param  array   $data data needed by the job
 	 * @return boolean
 	 */
-	abstract public static function handle(array $data = []) : bool;
+	abstract public static function handle(array $data = []): bool;
 
 	/**
 	 * Dispatches the job into the queue.
@@ -22,6 +26,10 @@ abstract class Job
 	public static function dispatch($data = [])
 	{
 		$queue = self::getQueue();
+
+		$queue->weight(self::$weight ?: self::$defaultWeight);
+
+		self::$weight = null;
 
 		return $queue->job(get_called_class(), $data);
 	}
@@ -35,6 +43,20 @@ abstract class Job
 	 */
 	public static function queue($queue)
 	{
+		return get_called_class();
+	}
+
+	/**
+	 * set a queue other than the default to
+	 * dispatch this job to.
+	 *
+	 * @param  int  $queue weight other than default
+	 * @return this
+	 */
+	public static function weight(int $weight)
+	{
+		self::$weight = $weight;
+
 		return get_called_class();
 	}
 
@@ -69,7 +91,7 @@ abstract class Job
 
 	protected static function getQueue()
 	{
-		if (! self::$queue)
+		if ( ! self::$queue)
 		{
 			self::$queue = \Config\Services::queue();
 		}

@@ -6,18 +6,19 @@
 class Message extends \CodeIgniter\Entity\Entity
 {
 	protected $attributes = [
-        'id'               => null,
-        'queue'            => null,
-        'status'           => Status::WAITING,
-        'attempts'         => 0,
-        'data'             => null,
-        'error'            => '',
-        'progress_current' => 0,
-        'progress_total'   => 0,
-        'available_at'     => null,
-        'created_at'       => null,
-        'updated_at'       => null,
-    ];
+		'id'               => null,
+		'queue'            => null,
+		'status'           => Status::WAITING,
+		'attempts'         => 0,
+		'data'             => null,
+		'error'            => '',
+		'progress_current' => 0,
+		'progress_total'   => 0,
+		'weight'           => 100,
+		'available_at'     => null,
+		'created_at'       => null,
+		'updated_at'       => null,
+	];
 
 	protected $casts = [
 		'id'               => 'integer',
@@ -44,8 +45,10 @@ class Message extends \CodeIgniter\Entity\Entity
 
 		$status = $statuses[$this->status] ?? false;
 
-		if($status)
+		if ($status)
+		{
 			return lang('queue.status.' . strtolower($status));
+		}
 
 		return lang('queue.status.unknown');
 	}
@@ -55,11 +58,15 @@ class Message extends \CodeIgniter\Entity\Entity
 	 */
 	public function getProgress(): string
 	{
-		if($this->status != Status::EXECUTING)
+		if ($this->status != Status::EXECUTING)
+		{
 			return $this->status_text;
+		}
 
-		if($this->progress_total == 0)
+		if ($this->progress_total == 0)
+		{
 			return $this->status_text;
+		}
 
 		return ($this->progress_current / $this->progress_total * 100) . '%';
 	}

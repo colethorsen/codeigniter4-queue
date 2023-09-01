@@ -6,19 +6,20 @@ use CodeIgniter\Queue\Message;
 
 class Model extends BaseModel
 {
-	protected $primaryKey    = 'id';
+    protected $primaryKey = 'id';
 
-	protected $returnType    = Message::class;
+    protected $returnType = Message::class;
 
-	protected $useTimestamps = true;
+    protected $useTimestamps = true;
 
-	protected $allowedFields = [
+    protected $allowedFields = [
         'id',
         'queue',
         'status',
         'attempts',
         'data',
         'error',
+        'weight',
         'progress_current',
         'progress_total',
         'available_at',
