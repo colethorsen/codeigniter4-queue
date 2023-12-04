@@ -113,7 +113,6 @@ class DatabaseHandler extends BaseHandler
 
 	/**
 	 * Fetch message from queueing system.
-	 * When there are no message, this method will return (won't wait).
 	 *
 	 * @param  callable $callback
 	 * @param  string   $queue
@@ -121,19 +120,20 @@ class DatabaseHandler extends BaseHandler
 	 */
 	public function fetch(callable $callback, string $queue = ''): bool
 	{
-		$message = $this->model
-			->where('queue', $queue !== '' ? $queue : $this->defaultQueue)
-			->where('status', Status::WAITING)
-			->where('available_at <', date('Y-m-d H:i:s'))
-			->orderBy('weight')
-			->orderBy('id')
-			->first();
-		/*
-				if (! $query)
-				{
-					throw QueueException::forFailGetQueueDatabase($this->table);
-				}
-		 */
+		try
+		{
+			$message = $this->model
+				->where('queue', $queue !== '' ? $queue : $this->defaultQueue)
+				->where('status', Status::WAITING)
+				->where('available_at <', date('Y-m-d H:i:s'))
+				->orderBy('weight')
+				->orderBy('id')
+				->first();
+		}
+		catch(\Throwable $e)
+		{
+			throw QueueException::forFailGetQueueDatabase($this->model->builder()->getTable());
+		}
 
 		//if there is nothing else to run at the moment return false.
 		if ( ! $message)

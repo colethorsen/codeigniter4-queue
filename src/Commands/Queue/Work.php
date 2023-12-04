@@ -78,6 +78,10 @@ class Work extends BaseCommand
 
 				$jobsProcessed++;
 			}
+			catch(QueueException $e)
+			{
+				throw $e;
+			}
 			catch (\Throwable $e)
 			{
 				CLI::error('Failed', 'light_red');

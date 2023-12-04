@@ -14,7 +14,7 @@
 
 return [
 	'invalid_connection'   => "'{0}' is not a valid queue connection group.",
-	'failGetQueueDatabase' => 'something occurs on running a query: maybe `{0}` table is not found.',
+	'failGetQueueDatabase' => 'There was an error fetching from the queue table: `{0}`',
 
 	'could_not_work'       => 'There is currently no functionality to work this queue, entries should be jobs, commands, or closures',
 
