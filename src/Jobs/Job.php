@@ -1,5 +1,7 @@
 <?php namespace CodeIgniter\Queue\Jobs;
 
+use CodeIgniter\I18n\Time;
+
 abstract class Job
 {
 	protected static $queue;
@@ -7,6 +9,8 @@ abstract class Job
 	protected static $defaultWeight = 100;
 
 	protected static $weight = null;
+
+	protected static $availableAt = null;
 
 	/**
 	 * handle the execution of a job
@@ -25,13 +29,24 @@ abstract class Job
 	 */
 	public static function dispatch($data = [])
 	{
-		$queue = self::getQueue();
+		$calledClass = get_called_class();
+		$queue       = self::getQueue();
 
 		$queue->weight(self::$weight ?: self::$defaultWeight);
-
 		self::$weight = null;
 
-		return $queue->job(get_called_class(), $data);
+		if (is_a($calledClass, SynchronousJob::class, true) && self::$availableAt === null)
+		{
+			return static::handle($data);
+		}
+
+		if (self::$availableAt !== null)
+		{
+			$queue->delayUntil(self::$availableAt);
+			self::$availableAt = null;
+		}
+
+		return $queue->job($calledClass, $data);
 	}
 
 	/**
@@ -68,8 +83,17 @@ abstract class Job
 	 */
 	public static function delayUntil($time)
 	{
-		$queue = self::getQueue();
-		$queue->delayUntil($time);
+		if ( ! $time instanceof Time)
+		{
+			$time = $time instanceof \DateTime
+				? Time::instance($time, 'en_US')
+				: new Time($time);
+		}
+
+		if ($time > new Time)
+		{
+			static::$availableAt = $time;
+		}
 
 		return get_called_class();
 	}
@@ -83,8 +107,7 @@ abstract class Job
 	 */
 	public static function delay($min)
 	{
-		$queue = self::getQueue();
-		$queue->delay($min);
+		static::$availableAt = (new Time)->modify('+' . $min . ' minutes');
 
 		return get_called_class();
 	}
